@@ -14,8 +14,11 @@
 #include <Magnum/Shaders/Phong.h>
 #include <Magnum/Trade/MeshData3D.h>
 #include <MagnumExternal/Optional/optional.hpp>
-#include <iostream>
+#include <Corrade/PluginManager/Manager.h>
+#include <MagnumPlugins/JpegImporter/JpegImporter.h>
 #include <unordered_map>
+
+#include <configure.h>
 
 using namespace Magnum;
 
@@ -89,11 +92,13 @@ void MapPlane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
 {
 	//Debug() << cam.cameraMatrix().backward().z() << " | " << light.x() << " " << light.y() << " " << light.z();
 	auto abslight = m_Light->absoluteTransformation();
+	/*
 	auto lightpos = -trans + abslight;
 	Debug() << abslight;
 	Debug() << trans;
 	Debug() << lightpos.translation();
 	Debug() << abslight.translation();
+	*/
 	m_Shader->setAmbientColor({0.2f, 0.2f, 0.2f})
 		.setDiffuseColor({0.3f, 0.3f, 0.3f})
 		.setSpecularColor({0.6f, 0.6f, 0.6f})
@@ -138,7 +143,12 @@ class MeshLoader : public AbstractResourceLoader<Mesh>
 
 GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(args, Configuration())
 {
-	srand(time(NULL));
+	PluginManager::Manager<Trade::AbstractImporter> pluginManager(MAGNUM_PLUGINS_IMPORTER_DIR);
+	if(!(pluginManager.load("JpegImporter") & PluginManager::LoadState::Loaded))
+	{
+		exit();
+	}
+	srand(time(nullptr));
 	setMouseLocked(true);
 	(m_CameraObject = new Object3D(&m_Scene));
 	(m_Camera = new SceneGraph::Camera3D(*m_CameraObject))
@@ -162,33 +172,27 @@ GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(ar
 
 void GravityShooter::BuildMap(Object3D* mapParent, Object3D* light, SceneGraph::DrawableGroup3D* group)
 {
-	/*
-	for(int y=-10; y<10; y+=2)
-	{
-		for(int x=-10; x<10; x+=2)
-		{
-		*/
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(-80.0f)); // Back
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(80.0f)); // Front
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(-80.0f)); // Back
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(80.0f)); // Front
 
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(90)).translate({80.0f, 0.0f, 0.0f}); // Left
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(-90)).translate({-80.0f, 0.0f, 0.0f}); // Left
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(90)).translate({80.0f, 0.0f, 0.0f}); // Left
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(-90)).translate({-80.0f, 0.0f, 0.0f}); // Left
 
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, -40.0f, 0.0f});
-			(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, 40.0f, 0.0f});
-			/*
-		}
-	}
-	*/
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, -40.0f, 0.0f});
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, 40.0f, 0.0f});
 }
 
 void GravityShooter::drawEvent()
 {
 	defaultFramebuffer.clear(FramebufferClear::Color|FramebufferClear::Depth);
-	if(m_Keys[(SDL_Keycode)KeyEvent::Key::A]) m_RootObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	else if(m_Keys[(SDL_Keycode)KeyEvent::Key::D]) m_RootObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	if(m_Keys[(SDL_Keycode)KeyEvent::Key::W]) m_RootObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
-	else if(m_Keys[(SDL_Keycode)KeyEvent::Key::S]) m_RootObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
+	if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::A)])
+		m_RootObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+	else if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::D)])
+		m_RootObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+	if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::W)])
+		m_RootObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
+	else if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::S)])
+		m_RootObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
 	m_Camera->draw(m_MapDrawables);
 	swapBuffers();
 
@@ -204,21 +208,13 @@ void GravityShooter::mouseMoveEvent(MouseMoveEvent& e)
 	m_CameraObject->rotate(Deg(-e.relativePosition().y() * 0.1f), m_CameraRight, SceneGraph::TransformationType::Local);
 	m_CameraObject->rotate(Deg(-e.relativePosition().x() * 0.1f), m_CameraUp);
 }
-Vector3 GravityShooter::positionOnSphere(const Vector2i& pos) const
-{
-	Vector2 position = Vector2(pos*2)/Vector2(m_Camera->viewport()) - Vector2(1.0f);
-	Float length = position.length();
-	Vector3 result(length > 1.0f ? Vector3(position, 0.0f) : Vector3(position, 1.0f - length));
-	result.y() *= -1.0f;
-	return result.normalized();
-}
 void GravityShooter::keyPressEvent(KeyEvent& e)
 {
-	m_Keys[(SDL_Keycode)e.key()] = true;
+	m_Keys[static_cast<SDL_Keycode>(e.key())] = true;
 }
 void GravityShooter::keyReleaseEvent(KeyEvent& e)
 {
-	m_Keys[(SDL_Keycode)e.key()] = false;
+	m_Keys[static_cast<SDL_Keycode>(e.key())] = false;
 }
 
 MAGNUM_APPLICATION_MAIN(GravityShooter)
