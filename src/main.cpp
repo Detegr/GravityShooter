@@ -1,4 +1,6 @@
+#include <Corrade/PluginManager/Manager.h>
 #include <Magnum/Buffer.h>
+#include <Magnum/ColorFormat.h>
 #include <Magnum/DefaultFramebuffer.h>
 #include <Magnum/Mesh.h>
 #include <Magnum/MeshTools/Compile.h>
@@ -12,9 +14,11 @@
 #include <Magnum/SceneGraph/MatrixTransformation3D.h>
 #include <Magnum/SceneGraph/Scene.h>
 #include <Magnum/Shaders/Phong.h>
+#include <Magnum/Texture.h>
+#include <Magnum/TextureFormat.h>
 #include <Magnum/Trade/MeshData3D.h>
+#include <Magnum/Trade/ImageData.h>
 #include <MagnumExternal/Optional/optional.hpp>
-#include <Corrade/PluginManager/Manager.h>
 #include <MagnumPlugins/JpegImporter/JpegImporter.h>
 #include <unordered_map>
 
@@ -22,7 +26,7 @@
 
 using namespace Magnum;
 
-typedef ResourceManager<Trade::MeshData3D, Mesh, Shaders::Phong> GravityShooterResourceManager;
+typedef ResourceManager<Trade::MeshData3D, Mesh, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
 typedef SceneGraph::Object<SceneGraph::MatrixTransformation3D> Object3D;
 typedef SceneGraph::Scene<SceneGraph::MatrixTransformation3D> Scene3D;
 
@@ -42,6 +46,7 @@ class MapPlane : public MapObject
 {
 	private:
 		Object3D* m_Light;
+		Resource<Texture2D> m_Texture;
 	public:
 		MapPlane(Object3D* parent, Object3D* light, SceneGraph::DrawableGroup3D* group);
 		void draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam) override;
@@ -84,26 +89,20 @@ MapPlane::MapPlane(Object3D* parent, Object3D* light, SceneGraph::DrawableGroup3
 	: MapObject(parent, group), m_Light(light)
 {
 	auto& m = GravityShooterResourceManager::instance();
-	m_Mesh = m.get<Mesh>("cube");
+	m_Mesh = m.get<Mesh>("plane");
 	m_Shader = m.get<Shaders::Phong>("phong");
+	m_Texture = m.get<Texture2D>("wall");
 }
 
 void MapPlane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
 {
-	//Debug() << cam.cameraMatrix().backward().z() << " | " << light.x() << " " << light.y() << " " << light.z();
 	auto abslight = m_Light->absoluteTransformation();
-	/*
-	auto lightpos = -trans + abslight;
-	Debug() << abslight;
-	Debug() << trans;
-	Debug() << lightpos.translation();
-	Debug() << abslight.translation();
-	*/
-	m_Shader->setAmbientColor({0.2f, 0.2f, 0.2f})
-		.setDiffuseColor({0.3f, 0.3f, 0.3f})
-		.setSpecularColor({0.6f, 0.6f, 0.6f})
-		.setShininess(50.0f)
-		.setLightPosition(abslight.translation())
+	auto lightpos=-trans.translation() + cam.cameraMatrix().transformVector(abslight.translation());
+	m_Shader->setAmbientColor({0.0f, 0.0f, 0.0f})
+		.setDiffuseTexture(*m_Texture)
+		.setSpecularColor({0.1f, 0.1f, 0.1f})
+		.setShininess(10.0f)
+		.setLightPosition(lightpos)
 		.setTransformationMatrix(trans)
 		.setNormalMatrix(trans.rotationScaling())
 		.setProjectionMatrix(cam.projectionMatrix());
@@ -114,7 +113,7 @@ class PrimitiveLoader : public AbstractResourceLoader<Trade::MeshData3D>
 {
 	void doLoad(ResourceKey key) override
 	{
-		if(key == ResourceKey("plane")) set(key, Primitives::Plane::solid());
+		if(key == ResourceKey("plane")) set(key, Primitives::Plane::solid(Primitives::Plane::TextureCoords::Generate));
 		else if(key == ResourceKey("cube")) set(key, Primitives::Cube::solid());
 		else setNotFound(key);
 	}
@@ -141,13 +140,48 @@ class MeshLoader : public AbstractResourceLoader<Mesh>
 	}
 };
 
+class TexLoader : public AbstractResourceLoader<Texture2D>
+{
+	private:
+		std::unordered_map<ResourceKey, std::string> m_Map;
+	public:
+		TexLoader()
+		{
+			m_Map.insert({ResourceKey("wall"), "../brickwall.jpg"});
+		}
+		void doLoad(ResourceKey key) override
+		{
+			auto jpegImporter = GravityShooterResourceManager::instance().get<Trade::AbstractImporter>("jpegimporter");
+			if(!jpegImporter->openFile(m_Map[key]))
+			{
+				setNotFound(key);
+				return;
+			}
+			std::optional<Trade::ImageData2D> teximg = jpegImporter->image2D(0);
+			if(!teximg || (teximg->format() != ColorFormat::RGB && teximg->format() != ColorFormat::BGR))
+			{
+				setNotFound(key);
+				return;
+			}
+			auto& tex = (new Texture2D)->setWrapping(Sampler::Wrapping::ClampToEdge)
+				.setMinificationFilter(Sampler::Filter::Linear)
+				.setMagnificationFilter(Sampler::Filter::Linear)
+				.setImage(0, TextureFormat::RGB8, *teximg)
+				.generateMipmap();
+			set(key, std::move(tex));
+		}
+};
+
 GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(args, Configuration())
 {
 	PluginManager::Manager<Trade::AbstractImporter> pluginManager(MAGNUM_PLUGINS_IMPORTER_DIR);
 	if(!(pluginManager.load("JpegImporter") & PluginManager::LoadState::Loaded))
 	{
-		exit();
+		Error() << "No JpegImporter present";
+		std::exit(1);
 	}
+	m_Manager.set("jpegimporter", pluginManager.instance("JpegImporter").release());
+
 	srand(time(nullptr));
 	setMouseLocked(true);
 	(m_CameraObject = new Object3D(&m_Scene));
@@ -158,9 +192,10 @@ GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(ar
 	Renderer::setFeature(Renderer::Feature::DepthTest, true);
 	Renderer::setFeature(Renderer::Feature::FaceCulling, true);
 
-	m_Manager.set("phong", new Shaders::Phong);
+	m_Manager.set("phong", new Shaders::Phong(Shaders::Phong::Flag::DiffuseTexture));
 	m_Manager.setLoader<Trade::MeshData3D>(new PrimitiveLoader)
-		.setLoader<Mesh>(new MeshLoader);
+		.setLoader<Mesh>(new MeshLoader)
+		.setLoader<Texture2D>(new TexLoader);
 
 	m_CameraUp=m_CameraObject->transformation().up();
 	m_CameraRight=m_CameraObject->transformation().right();
@@ -168,18 +203,20 @@ GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(ar
 	m_RootObject = new Object3D(&m_Scene);
 	m_LightObject = new Object3D(m_RootObject);
 	BuildMap(m_RootObject, m_LightObject, &m_MapDrawables);
+
+	m_Manager.clear<Trade::AbstractImporter>();
 }
 
 void GravityShooter::BuildMap(Object3D* mapParent, Object3D* light, SceneGraph::DrawableGroup3D* group)
 {
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(-80.0f)); // Back
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).translate(Vector3::zAxis(80.0f)); // Front
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
 
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(90)).translate({80.0f, 0.0f, 0.0f}); // Left
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 0.2f}).rotateY(Deg(-90)).translate({-80.0f, 0.0f, 0.0f}); // Left
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(-90)).translate({80.0f, 0.0f, 0.0f}); // Left
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(90)).translate({-80.0f, 0.0f, 0.0f}); // Left
 
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, -40.0f, 0.0f});
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 0.2f, 80.0f}).translate({0.0f, 40.0f, 0.0f});
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(-90)).translate({0.0f, -40.0f, 0.0f});
+	(new MapPlane(mapParent, light, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(90)).translate({0.0f, 40.0f, 0.0f});
 }
 
 void GravityShooter::drawEvent()
