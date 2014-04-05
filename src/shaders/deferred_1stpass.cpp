@@ -18,18 +18,18 @@ Deferred1stPass::Deferred1stPass()
 
 	CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-	uniform_MVP = uniformLocation("MVP");
-	uniform_modelTranslation = uniformLocation("modelTranslation");
+	uniform_P = uniformLocation("P");
+	uniform_MV = uniformLocation("MV");
 }
 
-Deferred1stPass& Deferred1stPass::setMVP(const Matrix4& mvp)
+Deferred1stPass& Deferred1stPass::setP(const Matrix4& p)
 {
-	setUniform(uniform_MVP, mvp);
+	setUniform(uniform_P, p);
 	return *this;
 }
 
-Deferred1stPass& Deferred1stPass::setTranslationMatrix(const Matrix4& trans)
+Deferred1stPass& Deferred1stPass::setMV(const Matrix4& mv)
 {
-	setUniform(uniform_modelTranslation, trans);
+	setUniform(uniform_MV, mv);
 	return *this;
 }

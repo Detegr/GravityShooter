@@ -5,7 +5,7 @@
 
 static void BuildMap(Object3D* mapParent, SceneGraph::DrawableGroup3D* group)
 {
-	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-280.0f)); // Back
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
 
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(-90)).translate({80.0f, 0.0f, 0.0f}); // Left
@@ -51,28 +51,31 @@ GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(ar
 	m_Manager.setLoader<Trade::MeshData3D>(new PrimitiveLoader)
 		.setLoader<Mesh>(new MeshLoader)
 		.setLoader<Texture2D>(new TexLoader);
-	/*
-	auto walltex = m_Manager.get<Texture2D>("wall");
-	m_Manager.setLoader<Texture2D>(nullptr).set("walltex", std::move(*walltex));
-	*/
 
 	m_CameraUp=m_CameraObject->transformation().up();
 	m_CameraRight=m_CameraObject->transformation().right();
 	m_CameraBack=m_CameraObject->transformation().backward();
 	m_RootObject = new Object3D(&m_Scene);
-	m_LightObject = new Object3D(m_RootObject);
-	//m_LightObject->translate({-70.0f, 0.0f, 70.0f});
 	BuildMap(m_RootObject, &m_MapDrawables);
-
-	//m_RootObject->translate({75.0f, 0.0f, -75.0f});
-	//m_CameraObject->rotate(Deg(-65), m_CameraUp);
 
 	m_Manager.clear<Trade::AbstractImporter>();
 }
 
 bool GravityShooter::keyPressed(KeyEvent::Key k) const
 {
-	try {return m_Keys.at(static_cast<SDL_Keycode>(k)); }
+	try {return m_Keys.at(static_cast<SDL_Keycode>(k)).first; }
+	catch(const std::out_of_range& e) { return false; }
+}
+bool GravityShooter::keyHit(KeyEvent::Key k)
+{
+	try {
+		if(!m_Keys.at(static_cast<SDL_Keycode>(k)).second)
+		{
+			m_Keys[static_cast<SDL_Keycode>(k)].second=true;
+			return true;
+		}
+		return false;
+	}
 	catch(const std::out_of_range& e) { return false; }
 }
 
@@ -80,22 +83,14 @@ void GravityShooter::drawEvent()
 {
 	defaultFramebuffer.clear(FramebufferClear::Color|FramebufferClear::Depth);
 
-	if(keyPressed(KeyEvent::Key::A))
-		m_RootObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	else if(keyPressed(KeyEvent::Key::D))
-		m_RootObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
 	if(keyPressed(KeyEvent::Key::W))
 		m_RootObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
 	else if(keyPressed(KeyEvent::Key::S))
 		m_RootObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
-	if(keyPressed(KeyEvent::Key::I))
-		m_LightObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
-	else if(keyPressed(KeyEvent::Key::K))
-		m_LightObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
-	if(keyPressed(KeyEvent::Key::J))
-		m_LightObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	else if(keyPressed(KeyEvent::Key::L))
-		m_LightObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+	if(keyPressed(KeyEvent::Key::A))
+		m_RootObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+	else if(keyPressed(KeyEvent::Key::D))
+		m_RootObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
 
 	defaultFramebuffer.bind(FramebufferTarget::Draw);
 	m_Camera->draw(m_MapDrawables);
@@ -119,6 +114,14 @@ void GravityShooter::drawEvent()
 		newplane->scale({20.0f, 20.0f, 1.0f}).translate(-m_RootObject->transformation().translation());
 	}
 
+	if(keyHit(KeyEvent::Key::Q))
+	{
+		for(Object3D* o=m_RootObject->firstChild(); o; o=o->nextSibling())
+		{
+			MapObject* mo = dynamic_cast<MapObject*>(o);
+			mo->switchShader();
+		}
+	}
 	redraw();
 }
 
@@ -134,11 +137,11 @@ void GravityShooter::mouseMoveEvent(MouseMoveEvent& e)
 }
 void GravityShooter::keyPressEvent(KeyEvent& e)
 {
-	m_Keys[static_cast<SDL_Keycode>(e.key())] = true;
+	m_Keys[static_cast<SDL_Keycode>(e.key())] = std::make_pair(true, false);
 }
 void GravityShooter::keyReleaseEvent(KeyEvent& e)
 {
-	m_Keys[static_cast<SDL_Keycode>(e.key())] = false;
+	m_Keys[static_cast<SDL_Keycode>(e.key())] = std::make_pair(false, true);
 }
 
 MAGNUM_APPLICATION_MAIN(GravityShooter)

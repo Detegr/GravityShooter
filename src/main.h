@@ -56,6 +56,7 @@ class GravityShooter : public Platform::Application
 		void keyPressEvent(KeyEvent& e) override;
 		void keyReleaseEvent(KeyEvent& e) override;
 		bool keyPressed(KeyEvent::Key k) const;
+		bool keyHit(KeyEvent::Key k);
 
 		GravityShooterResourceManager m_Manager;
 
@@ -71,8 +72,8 @@ class GravityShooter : public Platform::Application
 
 		SceneGraph::DrawableGroup3D m_MapDrawables;
 		Scene3D m_Scene;
-		Object3D* m_RootObject, *m_CameraObject, *m_LightObject;
+		Object3D* m_RootObject, *m_CameraObject;
 
-		std::unordered_map<SDL_Keycode, bool> m_Keys;
+		std::unordered_map<SDL_Keycode, std::pair<bool, bool>> m_Keys;
 };
 

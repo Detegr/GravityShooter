@@ -3,24 +3,23 @@
 #include <sstream>
 
 Plane::Plane(Object3D* parent, SceneGraph::DrawableGroup3D* group)
-	: MapObject(parent, group, "plane", "flattextured"), m_Texture(GravityShooterResourceManager::instance().get<Texture2D>("wall")),
-	m_DeferredShader(GravityShooterResourceManager::instance().get<Deferred1stPass>("deferred1stpass")) {}
+	: MapObject(parent, group, "plane", "flattextured"),
+	m_Texture(GravityShooterResourceManager::instance().get<Texture2D>("wall"))
+	{}
 
-/*
+
 void Plane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
 {
+	if(!m_ActiveShader) switchShader();
+	CORRADE_INTERNAL_ASSERT(m_FlatShader);
+	CORRADE_INTERNAL_ASSERT(m_DeferredShader);
+	CORRADE_INTERNAL_ASSERT(m_ActiveShader);
 	if(m_Texture) m_FlatShader->setTexture(*m_Texture);
-	else m_FlatShader->setColor({0.3f, 0.3f, 0.3f, 1.0f});
-	m_FlatShader->setTransformationProjectionMatrix(cam.projectionMatrix() * trans);
-	m_Mesh->draw(*m_FlatShader);
-}
-*/
-void Plane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
-{
-	if(m_Texture) m_FlatShader->setTexture(*m_Texture);
-	m_FlatShader->setTransformationProjectionMatrix(cam.projectionMatrix() * trans);
-	m_DeferredShader->setMVP(cam.projectionMatrix() * trans).setTranslationMatrix(trans);
-	m_Mesh->draw(*m_DeferredShader);
+	if(m_ActiveShader == &(*m_DeferredShader))
+		m_DeferredShader->setP(cam.projectionMatrix()).setMV(trans);
+	else
+		m_FlatShader->setTransformationProjectionMatrix(cam.projectionMatrix() * trans);
+	m_Mesh->draw(*m_ActiveShader);
 }
 
 void Plane::setTexture(Texture2D* tex)
