@@ -25,6 +25,7 @@ add_executable(gravity
 	src/main.cpp \\
 	src/plane.cpp \\
 	src/ball.cpp \\
+	src/loaders.cpp \\
 	src/shaders/deferred_1stpass.cpp
 	${shaderdata})
 
