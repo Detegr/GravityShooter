@@ -5,7 +5,6 @@
 
 static void BuildMap(Object3D* mapParent, SceneGraph::DrawableGroup3D* group)
 {
-	Debug() << "Building map...";
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
 
