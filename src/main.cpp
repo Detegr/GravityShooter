@@ -1,186 +1,38 @@
-#include <Corrade/PluginManager/Manager.h>
-#include <Magnum/Buffer.h>
-#include <Magnum/ColorFormat.h>
-#include <Magnum/DefaultFramebuffer.h>
-#include <Magnum/Mesh.h>
-#include <Magnum/MeshTools/Compile.h>
-#include <Magnum/Platform/Sdl2Application.h>
-#include <Magnum/Primitives/Cube.h>
-#include <Magnum/Primitives/Plane.h>
-#include <Magnum/Renderer.h>
-#include <Magnum/ResourceManager.h>
-#include <Magnum/SceneGraph/Camera3D.h>
-#include <Magnum/SceneGraph/Drawable.h>
-#include <Magnum/SceneGraph/MatrixTransformation3D.h>
-#include <Magnum/SceneGraph/Scene.h>
-#include <Magnum/Shaders/Phong.h>
-#include <Magnum/Texture.h>
-#include <Magnum/TextureFormat.h>
-#include <Magnum/Trade/MeshData3D.h>
-#include <Magnum/Trade/ImageData.h>
-#include <MagnumExternal/Optional/optional.hpp>
-#include <MagnumPlugins/JpegImporter/JpegImporter.h>
-#include <unordered_map>
+#include "main.h"
+#include "loaders.h"
+#include "plane.h"
+#include "ball.h"
 
-#include <configure.h>
-
-using namespace Magnum;
-
-typedef ResourceManager<Trade::MeshData3D, Mesh, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
-typedef SceneGraph::Object<SceneGraph::MatrixTransformation3D> Object3D;
-typedef SceneGraph::Scene<SceneGraph::MatrixTransformation3D> Scene3D;
-
-class MapObject : public Object3D, SceneGraph::Drawable3D
+static void BuildMap(Object3D* mapParent, SceneGraph::DrawableGroup3D* group)
 {
-	protected:
-		MapObject(Object3D* parent, SceneGraph::DrawableGroup3D* group) :
-			Object3D(parent), SceneGraph::Drawable3D(*this, group),
-			m_Mesh(),
-			m_Shader() {}
+	Debug() << "Building map...";
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
 
-		Resource<Mesh> m_Mesh;
-		Resource<Shaders::Phong> m_Shader;
-};
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(-90)).translate({80.0f, 0.0f, 0.0f}); // Left
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(90)).translate({-80.0f, 0.0f, 0.0f}); // Left
 
-class MapPlane : public MapObject
-{
-	private:
-		Object3D* m_Light;
-		Resource<Texture2D> m_Texture;
-	public:
-		MapPlane(Object3D* parent, Object3D* light, SceneGraph::DrawableGroup3D* group);
-		void draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam) override;
-};
+	(new Plane(mapParent, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(-90)).translate({0.0f, -40.0f, 0.0f});
+	(new Plane(mapParent, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(90)).translate({0.0f, 40.0f, 0.0f});
 
-class GravityShooter : public Platform::Application
-{
-	public:
-		explicit GravityShooter(const Arguments&  args);
-
-	private:
-		void drawEvent() override;
-		void viewportEvent(const Vector2i& size) override;
-
-		void mouseMoveEvent(MouseMoveEvent& e) override;
-		Vector3 positionOnSphere(const Vector2i& position) const;
-		Vector3 m_PrevPos;
-
-		void keyPressEvent(KeyEvent& e) override;
-		void keyReleaseEvent(KeyEvent& e) override;
-
-		void BuildMap(Object3D* mapParent, Object3D* light, SceneGraph::DrawableGroup3D* group);
-
-		GravityShooterResourceManager m_Manager;
-
-		SceneGraph::Camera3D* m_Camera;
-		Vector3 m_CameraDirection;
-		Vector3 m_CameraUp;
-		Vector3 m_CameraRight;
-		Vector3 m_CameraBack;
-
-		SceneGraph::DrawableGroup3D m_MapDrawables;
-		Scene3D m_Scene;
-		Object3D* m_RootObject, *m_CameraObject, *m_LightObject;
-
-		std::unordered_map<SDL_Keycode, bool> m_Keys;
-};
-
-MapPlane::MapPlane(Object3D* parent, Object3D* light, SceneGraph::DrawableGroup3D* group)
-	: MapObject(parent, group), m_Light(light)
-{
-	auto& m = GravityShooterResourceManager::instance();
-	m_Mesh = m.get<Mesh>("plane");
-	m_Shader = m.get<Shaders::Phong>("phong");
-	m_Texture = m.get<Texture2D>("wall");
+	for(int i=0; i<100; i+=20)
+	{
+		(new Ball(mapParent, group))->scale({10.0f, 10.0f, 10.0f}).translate({70.0f-i, -30.0f + (i/2), -70.0f + i});
+	}
 }
 
-void MapPlane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
-{
-	auto abslight = m_Light->absoluteTransformation();
-	auto lightpos=-trans.translation() + cam.cameraMatrix().transformVector(abslight.translation());
-	m_Shader->setAmbientColor({0.0f, 0.0f, 0.0f})
-		.setDiffuseTexture(*m_Texture)
-		.setSpecularColor({0.1f, 0.1f, 0.1f})
-		.setShininess(10.0f)
-		.setLightPosition(lightpos)
-		.setTransformationMatrix(trans)
-		.setNormalMatrix(trans.rotationScaling())
-		.setProjectionMatrix(cam.projectionMatrix());
-	m_Mesh->draw(*m_Shader);
-}
-
-class PrimitiveLoader : public AbstractResourceLoader<Trade::MeshData3D>
-{
-	void doLoad(ResourceKey key) override
-	{
-		if(key == ResourceKey("plane")) set(key, Primitives::Plane::solid(Primitives::Plane::TextureCoords::Generate));
-		else if(key == ResourceKey("cube")) set(key, Primitives::Cube::solid());
-		else setNotFound(key);
-	}
-};
-
-class MeshLoader : public AbstractResourceLoader<Mesh>
-{
-	void doLoad(ResourceKey key) override
-	{
-		auto primitive = GravityShooterResourceManager::instance().get<Trade::MeshData3D>(key);
-		if(!primitive) setNotFound(key);
-		else
-		{
-			std::optional<Mesh> mesh;
-			std::unique_ptr<Buffer> buffer, indexBuffer;
-			std::tie(mesh,buffer,indexBuffer) = MeshTools::compile(*primitive, BufferUsage::StaticDraw);
-
-			// Transfer ownership to manager
-			buffer.release();
-			if(indexBuffer) indexBuffer.release();
-
-			set(key, new Mesh(std::move(*mesh)));
-		}
-	}
-};
-
-class TexLoader : public AbstractResourceLoader<Texture2D>
-{
-	private:
-		std::unordered_map<ResourceKey, std::string> m_Map;
-	public:
-		TexLoader()
-		{
-			m_Map.insert({ResourceKey("wall"), "../brickwall.jpg"});
-		}
-		void doLoad(ResourceKey key) override
-		{
-			auto jpegImporter = GravityShooterResourceManager::instance().get<Trade::AbstractImporter>("jpegimporter");
-			if(!jpegImporter->openFile(m_Map[key]))
-			{
-				setNotFound(key);
-				return;
-			}
-			std::optional<Trade::ImageData2D> teximg = jpegImporter->image2D(0);
-			if(!teximg || (teximg->format() != ColorFormat::RGB && teximg->format() != ColorFormat::BGR))
-			{
-				setNotFound(key);
-				return;
-			}
-			auto& tex = (new Texture2D)->setWrapping(Sampler::Wrapping::ClampToEdge)
-				.setMinificationFilter(Sampler::Filter::Linear)
-				.setMagnificationFilter(Sampler::Filter::Linear)
-				.setImage(0, TextureFormat::RGB8, *teximg)
-				.generateMipmap();
-			set(key, std::move(tex));
-		}
-};
-
-GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(args, Configuration())
+GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(args, Configuration()), m_BufferImage(ColorFormat::Red, ColorType::UnsignedByte),
+	m_DepthFrameBuffer(defaultFramebuffer.viewport())
 {
 	PluginManager::Manager<Trade::AbstractImporter> pluginManager(MAGNUM_PLUGINS_IMPORTER_DIR);
 	if(!(pluginManager.load("JpegImporter") & PluginManager::LoadState::Loaded))
 	{
-		Error() << "No JpegImporter present";
+		//Error() << "No JpegImporter present";
 		std::exit(1);
 	}
 	m_Manager.set("jpegimporter", pluginManager.instance("JpegImporter").release());
+
+	m_DepthFrameBuffer.attachRenderbuffer(Framebuffer::BufferAttachment::Depth, m_DepthBuffer);
 
 	srand(time(nullptr));
 	setMouseLocked(true);
@@ -191,50 +43,86 @@ GravityShooter::GravityShooter(const Arguments& args) : Platform::Application(ar
 		.setViewport(defaultFramebuffer.viewport().size());
 	Renderer::setFeature(Renderer::Feature::DepthTest, true);
 	Renderer::setFeature(Renderer::Feature::FaceCulling, true);
+	Renderer::setFeature(Renderer::Feature::Blending, true);
 
-	m_Manager.set("phong", new Shaders::Phong(Shaders::Phong::Flag::DiffuseTexture));
+	//m_Manager.set("phong", new Shaders::(Shaders::Phong::Flag::DiffuseTexture));
+	m_Manager.set("flat", new Shaders::Flat3D);
+	m_Manager.set("flattextured", new Shaders::Flat3D(Shaders::Flat3D::Flag::Textured));
+	m_Manager.set("deferred1stpass", new Deferred1stPass);
 	m_Manager.setLoader<Trade::MeshData3D>(new PrimitiveLoader)
 		.setLoader<Mesh>(new MeshLoader)
 		.setLoader<Texture2D>(new TexLoader);
+	/*
+	auto walltex = m_Manager.get<Texture2D>("wall");
+	m_Manager.setLoader<Texture2D>(nullptr).set("walltex", std::move(*walltex));
+	*/
 
 	m_CameraUp=m_CameraObject->transformation().up();
 	m_CameraRight=m_CameraObject->transformation().right();
 	m_CameraBack=m_CameraObject->transformation().backward();
 	m_RootObject = new Object3D(&m_Scene);
 	m_LightObject = new Object3D(m_RootObject);
-	BuildMap(m_RootObject, m_LightObject, &m_MapDrawables);
+	//m_LightObject->translate({-70.0f, 0.0f, 70.0f});
+	BuildMap(m_RootObject, &m_MapDrawables);
+
+	//m_RootObject->translate({75.0f, 0.0f, -75.0f});
+	//m_CameraObject->rotate(Deg(-65), m_CameraUp);
 
 	m_Manager.clear<Trade::AbstractImporter>();
 }
 
-void GravityShooter::BuildMap(Object3D* mapParent, Object3D* light, SceneGraph::DrawableGroup3D* group)
+bool GravityShooter::keyPressed(KeyEvent::Key k) const
 {
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
-
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(-90)).translate({80.0f, 0.0f, 0.0f}); // Left
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(90)).translate({-80.0f, 0.0f, 0.0f}); // Left
-
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(-90)).translate({0.0f, -40.0f, 0.0f});
-	(new MapPlane(mapParent, light, group))->scale({80.0f, 80.0f, 1.0f}).rotateX(Deg(90)).translate({0.0f, 40.0f, 0.0f});
+	try {return m_Keys.at(static_cast<SDL_Keycode>(k)); }
+	catch(const std::out_of_range& e) { return false; }
 }
 
 void GravityShooter::drawEvent()
 {
 	defaultFramebuffer.clear(FramebufferClear::Color|FramebufferClear::Depth);
-	if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::A)])
+
+	if(keyPressed(KeyEvent::Key::A))
 		m_RootObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	else if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::D)])
+	else if(keyPressed(KeyEvent::Key::D))
 		m_RootObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
-	if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::W)])
+	if(keyPressed(KeyEvent::Key::W))
 		m_RootObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
-	else if(m_Keys[static_cast<SDL_Keycode>(KeyEvent::Key::S)])
+	else if(keyPressed(KeyEvent::Key::S))
 		m_RootObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
+	if(keyPressed(KeyEvent::Key::I))
+		m_LightObject->translate(m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
+	else if(keyPressed(KeyEvent::Key::K))
+		m_LightObject->translate(-m_CameraObject->transformation().backward(), SceneGraph::TransformationType::Local);
+	if(keyPressed(KeyEvent::Key::J))
+		m_LightObject->translate(m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+	else if(keyPressed(KeyEvent::Key::L))
+		m_LightObject->translate(-m_CameraObject->transformation().right(), SceneGraph::TransformationType::Local);
+
+	defaultFramebuffer.bind(FramebufferTarget::Draw);
 	m_Camera->draw(m_MapDrawables);
 	swapBuffers();
 
+	if(keyPressed(KeyEvent::Key::Space))
+	{
+		m_DepthFrameBuffer.clear(FramebufferClear::Color | FramebufferClear::Depth);
+		m_DepthFrameBuffer.bind(FramebufferTarget::Draw);
+		m_Camera->draw(m_MapDrawables);
+
+		m_DepthFrameBuffer.read({0, 0}, m_Camera->viewport(), m_BufferImage, BufferUsage::StaticDraw);
+		auto tex = new Texture2D;
+		tex->setWrapping(Sampler::Wrapping::ClampToEdge)
+			.setMinificationFilter(Sampler::Filter::Nearest)
+			.setMagnificationFilter(Sampler::Filter::Nearest)
+			.setImage(0, TextureFormat::RGB8, m_BufferImage);
+		//m_Manager.set("rendered", tex, );
+		auto newplane = new Plane(m_RootObject, &m_MapDrawables);
+		newplane->setTexture(tex);
+		newplane->scale({20.0f, 20.0f, 1.0f}).translate(-m_RootObject->transformation().translation());
+	}
+
 	redraw();
 }
+
 void GravityShooter::viewportEvent(const Vector2i& size)
 {
 	defaultFramebuffer.setViewport({{}, size});

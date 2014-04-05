@@ -19,7 +19,15 @@ include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/configure.h.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/configure.h)
 
-add_executable(gravity src/main.cpp)
+corrade_add_resource(shaderdata src/shaders/shaders.conf)
+
+add_executable(gravity
+	src/main.cpp \\
+	src/plane.cpp \\
+	src/ball.cpp \\
+	src/shaders/deferred_1stpass.cpp
+	${shaderdata})
+
 target_link_libraries(gravity
 	${MAGNUM_LIBRARIES}
 	${MAGNUM_MESHTOOLS_LIBRARIES}
