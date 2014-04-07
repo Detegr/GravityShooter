@@ -3,35 +3,39 @@
 #include <sstream>
 
 Plane::Plane(Object3D* parent, SceneGraph::DrawableGroup3D* group)
-	: MapObject(parent, group, "plane", "flattextured"),
-	m_Texture(GravityShooterResourceManager::instance().get<Texture2D>("wall"))
+	: MapObject(parent, group, "plane", "flattextured", "phong"),
+	m_Texture(GravityShooterResourceManager::instance().get<Texture2D>("wall")),
+	m_WallTexture(GravityShooterResourceManager::instance().get<Texture2D>("wall"))
 	{}
 
 
 void Plane::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
 {
-	if(!m_ActiveShader) switchShader();
+	if(!m_ActiveShader) setPhong();
 	CORRADE_INTERNAL_ASSERT(m_FlatShader);
 	CORRADE_INTERNAL_ASSERT(m_DeferredShader);
 	CORRADE_INTERNAL_ASSERT(m_ActiveShader);
-	if(m_Texture) m_FlatShader->setTexture(*m_Texture);
 	if(m_ActiveShader == &(*m_DeferredShader))
-		m_DeferredShader->setP(cam.projectionMatrix()).setMV(trans);
+		m_DeferredShader->setP(cam.projectionMatrix()).setMV(trans).setTexture(*m_WallTexture);
 	else
-		m_FlatShader->setTransformationProjectionMatrix(cam.projectionMatrix() * trans);
+	{
+		//m_FlatShader->setTransformationProjectionMatrix(cam.projectionMatrix() * trans);
+		//
+		Vector3 light={0.0f, 0.0f, 40.0f};
+		auto pos = cam.cameraMatrix().transformPoint(parent()->transformationMatrix().translation() + light);
+		m_PhongShader->setDiffuseTexture(*m_Texture)
+			.setSpecularColor({0.0f, 0.0f, 0.0f})
+			.setTransformationMatrix(trans)
+			.setNormalMatrix(trans.rotationScaling())
+			.setProjectionMatrix(cam.projectionMatrix())
+			.setLightPosition(pos)
+			.setShininess(1.0f);
+	}
 	m_Mesh->draw(*m_ActiveShader);
 }
 
-void Plane::setTexture(Texture2D* tex)
+void Plane::setTexture(const std::string& texName)
 {
-	static int i=0;
-	std::string istr;
-	std::stringstream ss;
-	ss << i++;
-	ss >> istr;
-	GravityShooterResourceManager::instance().set("rendered" + istr, tex);
-	m_FlatShader = GravityShooterResourceManager::instance().get<Shaders::Flat3D>("flattextured");
-	m_Texture = GravityShooterResourceManager::instance().get<Texture2D>("rendered" + istr);
-	//CORRADE_INTERNAL_ASSERT(m_FlatShader);
+	m_Texture = GravityShooterResourceManager::instance().get<Texture2D>(texName);
 	CORRADE_INTERNAL_ASSERT(m_Texture);
 }

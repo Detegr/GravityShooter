@@ -20,6 +20,8 @@ Deferred1stPass::Deferred1stPass()
 
 	uniform_P = uniformLocation("P");
 	uniform_MV = uniformLocation("MV");
+	uniform_Tex = uniformLocation("texSampler");
+	setUniform(uniform_Tex, m_TexLayer);
 }
 
 Deferred1stPass& Deferred1stPass::setP(const Matrix4& p)
@@ -31,5 +33,11 @@ Deferred1stPass& Deferred1stPass::setP(const Matrix4& p)
 Deferred1stPass& Deferred1stPass::setMV(const Matrix4& mv)
 {
 	setUniform(uniform_MV, mv);
+	return *this;
+}
+
+Deferred1stPass& Deferred1stPass::setTexture(Texture2D& texture)
+{
+	texture.bind(m_TexLayer);
 	return *this;
 }

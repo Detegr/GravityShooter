@@ -26,7 +26,9 @@ add_executable(gravity
 	src/plane.cpp \\
 	src/ball.cpp \\
 	src/loaders.cpp \\
-	src/shaders/deferred_1stpass.cpp
+	src/pointlight.cpp \\
+	src/shaders/pointlightshader.cpp \\
+	src/shaders/deferred_1stpass.cpp \\
 	${shaderdata})
 
 target_link_libraries(gravity

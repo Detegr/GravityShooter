@@ -19,6 +19,7 @@
 #include <Magnum/SceneGraph/Scene.h>
 #include <Magnum/Shader.h>
 #include <Magnum/Shaders/Flat.h>
+#include <Magnum/Shaders/Phong.h>
 #include <Magnum/Texture.h>
 #include <Magnum/Trade/ImageData.h>
 #include <Magnum/Trade/MeshData3D.h>
@@ -31,12 +32,14 @@
 
 #include <configure.h>
 #include "shaders/deferred_1stpass.h"
+#include "shaders/pointlightshader.h"
 
 using namespace Magnum;
 
 class Deferred1stPass;
+class PointLightShader;
 
-typedef ResourceManager<Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
+typedef ResourceManager<PointLightShader, Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
 typedef SceneGraph::Scene<SceneGraph::MatrixTransformation3D> Scene3D;
 typedef SceneGraph::Object<SceneGraph::MatrixTransformation3D> Object3D;
 
@@ -66,11 +69,17 @@ class GravityShooter : public Platform::Application
 		Vector3 m_CameraRight;
 		Vector3 m_CameraBack;
 
-		BufferImage2D m_BufferImage;
-		Framebuffer m_DepthFrameBuffer;
-		Renderbuffer m_DepthBuffer;
+		//BufferImage2D m_BufferImage;
+		Framebuffer m_MainFbo;
+		Texture2D* m_MainTexture;
 
-		SceneGraph::DrawableGroup3D m_MapDrawables;
+		Framebuffer m_Fbo;
+		Texture2D* m_PositionTexture;
+		Texture2D* m_NormalTexture;
+		Texture2D* m_DiffuseTexture;
+		Texture2D* m_DepthTexture;
+
+		SceneGraph::DrawableGroup3D m_MapDrawables, m_Lights;
 		Scene3D m_Scene;
 		Object3D* m_RootObject, *m_CameraObject;
 
