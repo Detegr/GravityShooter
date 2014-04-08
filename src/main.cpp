@@ -3,10 +3,11 @@
 #include "plane.h"
 #include "ball.h"
 #include "pointlight.h"
+#include "directionallight.h"
 
 static void BuildMap(Object3D* mapParent, SceneGraph::DrawableGroup3D* group)
 {
-	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-280.0f)); // Back
+	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).translate(Vector3::zAxis(-80.0f)); // Back
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateX(Deg(180)).translate(Vector3::zAxis(80.0f)); // Front
 
 	(new Plane(mapParent, group))->scale({80.0f, 40.0f, 1.0f}).rotateY(Deg(-90)).translate({80.0f, 0.0f, 0.0f}); // Left
@@ -81,8 +82,9 @@ GravityShooter::GravityShooter(const Arguments& args) :
 		->setAspectRatioPolicy(SceneGraph::AspectRatioPolicy::Extend)
 		.setPerspective(Deg(35.0f), 1.0f, 0.001f, 500)
 		.setViewport(defaultFramebuffer.viewport().size());
-	Renderer::setFeature(Renderer::Feature::FaceCulling, true);
 	Renderer::setClearColor({0.0f, 0.0f, 0.0f, 1.0f});
+	//Renderer::setFaceCullingMode(Renderer::PolygonFacing::Front);
+	Renderer::setFeature(Renderer::Feature::FaceCulling, true);
 
 	//m_Manager.set("phong", new Shaders::(Shaders::Phong::Flag::DiffuseTexture));
 	m_Manager.set("flat", new Shaders::Flat3D);
@@ -90,6 +92,7 @@ GravityShooter::GravityShooter(const Arguments& args) :
 	m_Manager.set("phong", new Shaders::Phong(Shaders::Phong::Flag::DiffuseTexture));
 	m_Manager.set("deferred1stpass", new Deferred1stPass);
 	m_Manager.set("pointlight", new PointLightShader);
+	m_Manager.set("directionallight", new DirectionalLightShader);
 
 	m_Manager.setLoader<Trade::MeshData3D>(new PrimitiveLoader)
 		.setLoader<Mesh>(new MeshLoader)
@@ -98,16 +101,26 @@ GravityShooter::GravityShooter(const Arguments& args) :
 	m_CameraUp=m_CameraObject->transformation().up();
 	m_CameraRight=m_CameraObject->transformation().right();
 	m_CameraBack=m_CameraObject->transformation().backward();
-	m_RootObject = new Object3D(&m_Scene);
+	m_StaticRoot = new Object3D(&m_Scene);
+	m_RootObject = new Object3D(m_StaticRoot);
 	m_RootObject->translate({0,0,-60});
 	BuildMap(m_RootObject, &m_MapDrawables);
 
 	m_Manager.clear<Trade::AbstractImporter>().setLoader<Texture2D>(nullptr);
 
-	(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 1.0f);
-	auto light=new PointLight(m_RootObject, &m_Lights);
-	light->Initialize({1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 1.0f);
-	light->translate({10.0f, 20.0f, 0.0f});
+	//(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 80.0f);
+	(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 0.0f, 0.0f}, 1.0f, 1.0f, 80.0f)
+		.translate({10.0f, 20.0f, 0.0f});
+	(new PointLight(m_RootObject, &m_Lights))->Initialize({0.0f, 1.0f, 0.0f}, 1.0f, 1.0f, 80.0f)
+		.translate({-10.0f, -20.0f, 20.0f});
+	(new PointLight(m_RootObject, &m_Lights))->Initialize({0.0f, 0.0f, 1.0f}, 1.0f, 1.0f, 80.0f)
+		.translate({-40.0f, -20.0f, 0.0f});
+	(new PointLight(m_RootObject, &m_Lights))->Initialize({0.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 80.0f)
+		.translate({70.0f, -20.0f, 0.0f});
+	(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 0.0f, 1.0f}, 1.0f, 1.0f, 80.0f)
+		.translate({20.0f, -10.0f, -60.0f});
+
+	(new DirectionalLight(m_RootObject, &m_Lights))->Initialize({1.0f, 1.0f, 1.0f});
 }
 
 bool GravityShooter::keyPressed(KeyEvent::Key k) const
@@ -152,7 +165,7 @@ void GravityShooter::drawEvent()
 	Renderer::setFeature(Renderer::Feature::DepthTest, false);
 
 	// LIGHTS
-	m_MainFbo.bind(FramebufferTarget::Draw);
+	defaultFramebuffer.bind(FramebufferTarget::Draw);
 	Renderer::setFeature(Renderer::Feature::Blending, true);
 	Renderer::setBlendEquation(Renderer::BlendEquation::Add);
 	Renderer::setBlendFunction(Renderer::BlendFunction::One, Renderer::BlendFunction::One);
@@ -166,6 +179,7 @@ void GravityShooter::drawEvent()
 	}
 	m_Camera->draw(m_Lights);
 
+	/*
 	int viewx = defaultFramebuffer.viewport().sizeX();
 	int viewy = defaultFramebuffer.viewport().sizeY();
 	int viewcx = defaultFramebuffer.viewport().centerX();
@@ -179,6 +193,7 @@ void GravityShooter::drawEvent()
 	AbstractFramebuffer::blit(m_Fbo, defaultFramebuffer, defaultFramebuffer.viewport(), Range2Di({viewcx, 0}, {viewx, viewcy}), FramebufferBlit::Color, FramebufferBlitFilter::Nearest);
 	m_MainFbo.mapForRead(Framebuffer::ColorAttachment(0));
 	AbstractFramebuffer::blit(m_MainFbo, defaultFramebuffer, defaultFramebuffer.viewport(), Range2Di({0, viewcy}, {viewcx, viewy}), FramebufferBlit::Color, FramebufferBlitFilter::Nearest);
+	*/
 
 	swapBuffers();
 

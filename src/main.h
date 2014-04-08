@@ -33,13 +33,15 @@
 #include <configure.h>
 #include "shaders/deferred_1stpass.h"
 #include "shaders/pointlightshader.h"
+#include "shaders/directionallightshader.h"
 
 using namespace Magnum;
 
 class Deferred1stPass;
 class PointLightShader;
+class DirectionalLightShader;
 
-typedef ResourceManager<PointLightShader, Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
+typedef ResourceManager<DirectionalLightShader, PointLightShader, Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
 typedef SceneGraph::Scene<SceneGraph::MatrixTransformation3D> Scene3D;
 typedef SceneGraph::Object<SceneGraph::MatrixTransformation3D> Object3D;
 
@@ -81,7 +83,7 @@ class GravityShooter : public Platform::Application
 
 		SceneGraph::DrawableGroup3D m_MapDrawables, m_Lights;
 		Scene3D m_Scene;
-		Object3D* m_RootObject, *m_CameraObject;
+		Object3D* m_StaticRoot, *m_RootObject, *m_CameraObject;
 
 		std::unordered_map<SDL_Keycode, std::pair<bool, bool>> m_Keys;
 };

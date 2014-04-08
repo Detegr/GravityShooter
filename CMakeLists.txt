@@ -27,7 +27,9 @@ add_executable(gravity
 	src/ball.cpp \\
 	src/loaders.cpp \\
 	src/pointlight.cpp \\
+	src/directionallight.cpp \\
 	src/shaders/pointlightshader.cpp \\
+	src/shaders/directionallightshader.cpp \\
 	src/shaders/deferred_1stpass.cpp \\
 	${shaderdata})
 
