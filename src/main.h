@@ -9,6 +9,7 @@
 #include <Magnum/Framebuffer.h>
 #include <Magnum/Mesh.h>
 #include <Magnum/Platform/Sdl2Application.h>
+#include <Magnum/Query.h>
 #include <Magnum/Renderbuffer.h>
 #include <Magnum/RenderbufferFormat.h>
 #include <Magnum/Renderer.h>
@@ -20,11 +21,15 @@
 #include <Magnum/Shader.h>
 #include <Magnum/Shaders/Flat.h>
 #include <Magnum/Shaders/Phong.h>
+#include <Magnum/Shaders/Vector.h>
+#include <Magnum/Text/GlyphCache.h>
+#include <Magnum/Text/Renderer.h>
 #include <Magnum/Texture.h>
 #include <Magnum/Trade/ImageData.h>
 #include <Magnum/Trade/MeshData3D.h>
 #include <Magnum/Version.h>
 #include <MagnumExternal/Optional/optional.hpp>
+#include <MagnumPlugins/FreeTypeFont/FreeTypeFont.h>
 #include <MagnumPlugins/JpegImporter/JpegImporter.h>
 
 #include <unordered_map>
@@ -41,7 +46,7 @@ class Deferred1stPass;
 class PointLightShader;
 class DirectionalLightShader;
 
-typedef ResourceManager<DirectionalLightShader, PointLightShader, Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
+typedef ResourceManager<Text::FreeTypeFont, Text::GlyphCache, DirectionalLightShader, PointLightShader, Deferred1stPass, Trade::MeshData3D, Mesh, Shaders::Flat3D, Shaders::Phong, Texture2D, Trade::AbstractImporter> GravityShooterResourceManager;
 typedef SceneGraph::Scene<SceneGraph::MatrixTransformation3D> Scene3D;
 typedef SceneGraph::Object<SceneGraph::MatrixTransformation3D> Object3D;
 
@@ -63,6 +68,10 @@ class GravityShooter : public Platform::Application
 		bool keyPressed(KeyEvent::Key k) const;
 		bool keyHit(KeyEvent::Key k);
 
+		Shaders::Vector3D m_TextShader;
+		std::unique_ptr<Text::Renderer3D> m_TextRenderer;
+		PluginManager::Manager<Text::FreeTypeFont> m_FontManager;
+
 		GravityShooterResourceManager m_Manager;
 
 		SceneGraph::Camera3D* m_Camera;
@@ -71,7 +80,6 @@ class GravityShooter : public Platform::Application
 		Vector3 m_CameraRight;
 		Vector3 m_CameraBack;
 
-		//BufferImage2D m_BufferImage;
 		Framebuffer m_MainFbo;
 		Texture2D* m_MainTexture;
 
@@ -86,5 +94,7 @@ class GravityShooter : public Platform::Application
 		Object3D* m_StaticRoot, *m_RootObject, *m_CameraObject;
 
 		std::unordered_map<SDL_Keycode, std::pair<bool, bool>> m_Keys;
+
+		TimeQuery m_TimeQuery;
 };
 

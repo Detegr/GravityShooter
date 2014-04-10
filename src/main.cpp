@@ -4,6 +4,7 @@
 #include "ball.h"
 #include "pointlight.h"
 #include "directionallight.h"
+#include <sstream>
 
 static void BuildMap(Object3D* mapParent, SceneGraph::DrawableGroup3D* group)
 {
@@ -37,17 +38,40 @@ static void prepareRenderTexture(Texture2D& tex, TextureFormat tf, ColorFormat c
 }
 
 GravityShooter::GravityShooter(const Arguments& args) :
-	Platform::Application(args, Configuration()),
+	Platform::Application(args, Configuration().setSize({1280,720})),
+	m_FontManager(MAGNUM_PLUGINS_FONT_DIR),
 	m_MainFbo(defaultFramebuffer.viewport()),
 	m_Fbo(defaultFramebuffer.viewport())
 {
 	PluginManager::Manager<Trade::AbstractImporter> pluginManager(MAGNUM_PLUGINS_IMPORTER_DIR);
 	if(!(pluginManager.load("JpegImporter") & PluginManager::LoadState::Loaded))
 	{
-		//Error() << "No JpegImporter present";
+		Error() << "No JpegImporter present";
 		std::exit(1);
 	}
+	if(!(m_FontManager.load("FreeTypeFont") & PluginManager::LoadState::Loaded))
+	{
+		Error() << "No FreeTypeFont plugin present";
+		std::exit(2);
+	}
 	m_Manager.set("jpegimporter", pluginManager.instance("JpegImporter").release());
+	m_Manager.set("font", m_FontManager.instance("FreeTypeFont").release());
+	{
+		Resource<Text::FreeTypeFont> font = m_Manager.get<Text::FreeTypeFont>("font");
+		CORRADE_INTERNAL_ASSERT(font);
+		Utility::Resource res("fonts");
+		if(!font || !font->openSingleData(res.getRaw("font.ttf"), 16))
+		{
+			Error() << "Cannot open font";
+			std::exit(3);
+		}
+		auto gc = new Text::GlyphCache(Vector2i(512));
+		std::string glyphs("abcdefghijklmnopqrstuvwxyzåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789!\"#¤%&/()=? .");
+		font->fillGlyphCache(*gc, glyphs);
+		GravityShooterResourceManager::instance().set("font_gc", gc);
+		m_TextRenderer = std::unique_ptr<Text::Renderer3D>(new Text::Renderer3D(*font, *gc, 1.0f));//std::unique_ptr<Text::Renderer3D>(new Text::Renderer3D(*font, *gc, 0.5f));
+		m_TextRenderer->reserve(glyphs.size(), BufferUsage::DynamicDraw, BufferUsage::StaticDraw);
+	}
 
 	m_Manager.set("postex", (m_PositionTexture = new Texture2D));
 	m_Manager.set("normaltex", (m_NormalTexture = new Texture2D));
@@ -106,7 +130,9 @@ GravityShooter::GravityShooter(const Arguments& args) :
 	m_RootObject->translate({0,0,-60});
 	BuildMap(m_RootObject, &m_MapDrawables);
 
-	m_Manager.clear<Trade::AbstractImporter>().setLoader<Texture2D>(nullptr);
+	m_Manager
+		.clear<Trade::AbstractImporter>()
+		.setLoader<Texture2D>(nullptr);
 
 	//(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 1.0f, 1.0f}, 1.0f, 1.0f, 80.0f);
 	(new PointLight(m_RootObject, &m_Lights))->Initialize({1.0f, 0.0f, 0.0f}, 1.0f, 1.0f, 80.0f)
@@ -121,6 +147,7 @@ GravityShooter::GravityShooter(const Arguments& args) :
 		.translate({20.0f, -10.0f, -60.0f});
 
 	(new DirectionalLight(m_RootObject, &m_Lights))->Initialize({1.0f, 1.0f, 1.0f});
+	m_TimeQuery.begin(TimeQuery::Target::TimeElapsed);
 }
 
 bool GravityShooter::keyPressed(KeyEvent::Key k) const
@@ -143,6 +170,13 @@ bool GravityShooter::keyHit(KeyEvent::Key k)
 
 void GravityShooter::drawEvent()
 {
+	static UnsignedLong prevt=0;
+	m_TimeQuery.end();
+	UnsignedLong t = m_TimeQuery.result<UnsignedLong>();
+	UnsignedLong dt = t - prevt;
+	double frametime = dt / 1000000.0;
+	m_TimeQuery.begin(TimeQuery::Target::TimeElapsed);
+
 	defaultFramebuffer.clear(FramebufferClear::Color|FramebufferClear::Depth);
 	m_MainFbo.clear(FramebufferClear::Color|FramebufferClear::Depth);
 
@@ -194,6 +228,18 @@ void GravityShooter::drawEvent()
 	m_MainFbo.mapForRead(Framebuffer::ColorAttachment(0));
 	AbstractFramebuffer::blit(m_MainFbo, defaultFramebuffer, defaultFramebuffer.viewport(), Range2Di({0, viewcy}, {viewcx, viewy}), FramebufferBlit::Color, FramebufferBlitFilter::Nearest);
 	*/
+
+	std::string frametimestr;
+	std::stringstream ss;
+	ss << frametime;
+	ss >> frametimestr;
+	frametimestr.append("ms per frame");
+	m_TextRenderer->render(frametimestr);
+	Matrix4 trans=Matrix4::from({}, {15.0f, -18.0f, -60.0f});
+	m_TextShader.setTransformationProjectionMatrix(m_Camera->projectionMatrix() * trans)
+		.setColor(Color3(1.0f))
+		.setVectorTexture(m_Manager.get<Text::GlyphCache>("font_gc")->texture());
+	m_TextRenderer->mesh().draw(m_TextShader);
 
 	swapBuffers();
 

@@ -6,7 +6,7 @@ DirectionalLight::DirectionalLight(Object3D* parent, SceneGraph::DrawableGroup3D
 	m_Shader(GravityShooterResourceManager::instance().get<DirectionalLightShader>("directionallight"))
 {}
 
-void DirectionalLight::draw(const Matrix4& trans, SceneGraph::AbstractCamera3D& cam)
+void DirectionalLight::draw(const Matrix4&, SceneGraph::AbstractCamera3D&)
 {
 	CORRADE_INTERNAL_ASSERT(m_Shader);
 	auto& m = GravityShooterResourceManager::instance();

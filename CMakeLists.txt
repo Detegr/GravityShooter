@@ -10,7 +10,9 @@ find_package(
 	SceneGraph
 	Primitives
 	MeshTools
-	DebugTools)
+	DebugTools
+	Text
+	FreeTypeFont)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CORRADE_CXX_FLAGS}")
 include_directories(${MAGNUM_INCLUDE_DIRS} ${MAGNUM_APPLICATION_INCLUDE_DIRS})
@@ -20,6 +22,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/configure.h.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/configure.h)
 
 corrade_add_resource(shaderdata src/shaders/shaders.conf)
+corrade_add_resource(fontdata src/fonts/fonts.conf)
 
 add_executable(gravity
 	src/main.cpp \\
@@ -31,7 +34,8 @@ add_executable(gravity
 	src/shaders/pointlightshader.cpp \\
 	src/shaders/directionallightshader.cpp \\
 	src/shaders/deferred_1stpass.cpp \\
-	${shaderdata})
+	${shaderdata}
+	${fontdata})
 
 target_link_libraries(gravity
 	${MAGNUM_LIBRARIES}
@@ -39,4 +43,5 @@ target_link_libraries(gravity
 	${MAGNUM_SHADERS_LIBRARIES}
 	${MAGNUM_SCENEGRAPH_LIBRARIES}
 	${MAGNUM_APPLICATION_LIBRARIES}
-	${MAGNUM_PRIMITIVES_LIBRARIES})
+	${MAGNUM_PRIMITIVES_LIBRARIES}
+	${MAGNUM_TEXT_LIBRARIES})
